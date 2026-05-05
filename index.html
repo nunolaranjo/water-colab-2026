@@ -2425,20 +2425,22 @@ h4{font-size:18px;line-height:1.3;font-weight:600;letter-spacing:-.01em;}
       window.scrollTo({top, behavior: "smooth"});
     });
   });
-  /* ---------- FORM SUBMISSION ---------- */
+  /* ---------- FORM SUBMISSION → SUPABASE ---------- */
+  const SUPABASE_URL = "https://qkdfsclqqycrcydfwqgp.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_jfQvEtOY_Vr-3Pj2qQwqVQ_MCRkDiAK";
+
   const submitBtn = document.getElementById("formSubmit");
   const formWrap = document.getElementById("formWrap");
   const formSuccess = document.getElementById("formSuccess");
 
   if (submitBtn){
-    submitBtn.addEventListener("click",function(){
+    submitBtn.addEventListener("click", async function(){
       // Collect all required inputs
       const inputs = formWrap.querySelectorAll("input[required]");
       let valid = true;
       let firstInvalid = null;
 
       inputs.forEach(inp => {
-        // For radio/checkbox groups, check if at least one in the group is checked
         if (inp.type === "radio"){
           const group = formWrap.querySelectorAll('input[name="'+inp.name+'"]');
           const anyChecked = Array.from(group).some(r => r.checked);
@@ -2469,12 +2471,67 @@ h4{font-size:18px;line-height:1.3;font-weight:600;letter-spacing:-.01em;}
         return;
       }
 
-      // Form is valid — show success (backend submission to be added later)
-      formWrap.style.display = "none";
-      formSuccess.style.display = "block";
-      const navH = document.querySelector(".nav").offsetHeight;
-      const top = formSuccess.getBoundingClientRect().top + window.pageYOffset - navH - 20;
-      window.scrollTo({top, behavior:"smooth"});
+      // Build payload
+      const payload = {
+        email: document.getElementById("f-email").value.trim(),
+        nome: document.getElementById("f-nome").value.trim(),
+        cargo: document.getElementById("f-cargo").value.trim(),
+        entidade: document.getElementById("f-entidade").value.trim(),
+        morada: document.getElementById("f-morada").value.trim(),
+        codigo_postal: document.getElementById("f-cp").value.trim(),
+        nif: document.getElementById("f-nif").value.trim(),
+        tipo_inscricao: formWrap.querySelector('input[name="tipo_inscricao"]:checked').value,
+        pagamento_iban: formWrap.querySelector('input[name="pagamento_iban"]').checked,
+        requisicao: formWrap.querySelector('input[name="requisicao"]:checked').value
+      };
+
+      // Disable button while sending
+      submitBtn.disabled = true;
+      submitBtn.textContent = lang === "pt" ? "A submeter..." : "Submitting...";
+
+      try {
+        const res = await fetch(SUPABASE_URL + "/rest/v1/inscricoes", {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": "Bearer " + SUPABASE_KEY,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok){
+          // Success
+          formWrap.style.display = "none";
+          formSuccess.style.display = "block";
+          const navH = document.querySelector(".nav").offsetHeight;
+          const top = formSuccess.getBoundingClientRect().top + window.pageYOffset - navH - 20;
+          window.scrollTo({top, behavior:"smooth"});
+        } else {
+          const err = await res.json();
+          // Duplicate email
+          if (res.status === 409 || (err.code === "23505")){
+            alert(lang === "pt"
+              ? "Este email já foi utilizado para uma inscrição."
+              : "This email has already been used for a registration.");
+          } else {
+            alert(lang === "pt"
+              ? "Erro ao submeter inscrição. Por favor tente novamente."
+              : "Error submitting registration. Please try again.");
+            console.error("Supabase error:", err);
+          }
+          submitBtn.disabled = false;
+          submitBtn.textContent = lang === "pt" ? "Inscrever-me" : "Register";
+        }
+      } catch(e){
+        alert(lang === "pt"
+          ? "Erro de ligação. Verifique a sua internet e tente novamente."
+          : "Connection error. Please check your internet and try again.");
+        console.error("Network error:", e);
+        submitBtn.disabled = false;
+        submitBtn.textContent = lang === "pt" ? "Inscrever-me" : "Register";
+      }
     });
   }
 
